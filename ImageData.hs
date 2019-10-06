@@ -5,10 +5,11 @@ data ImageData =
             Int
             RGBData
 
-data RGB =
-  RGB Integer
-      Integer
-      Integer
+data RGB = RGB
+  { r :: Integer
+  , g :: Integer
+  , b :: Integer
+  }
 
 instance Show RGB where
   show (RGB r g b) = show r ++ " " ++ show g ++ " " ++ show b ++ "\n"
@@ -27,6 +28,25 @@ genNPixel (RGBData list) n =
    in genNPixel (RGBData (list ++ [rgb])) (n - 1)
 
 dataLength (RGBData list) = length list
+
+rgb_add :: RGB -> RGB -> RGB
+rgb_add (RGB r g b) (RGB r1 g1 b1) = RGB (r + r1) (g + g1) (b + b1)
+
+rgbdata_concat :: RGBData -> RGBData -> RGBData
+rgbdata_concat (RGBData list1) (RGBData list2) = RGBData (list1 ++ list2)
+
+rgbdata_sum :: RGBData -> RGB
+rgbdata_sum (RGBData (x:[])) = x
+rgbdata_sum (RGBData (x:xs)) = rgb_add x (rgbdata_sum (RGBData xs))
+
+rgbdata_average :: RGBData -> RGBData
+rgbdata_average rgbdata =
+  let sum = (rgbdata_sum rgbdata)
+      leng = dataLength rgbdata
+      aveR = quot (r sum) (toInteger leng)
+      aveG = quot (g sum) (toInteger leng)
+      aveB = quot (b sum) (toInteger leng)
+   in RGBData [(RGB aveR aveG aveB)]
 
 toString :: RGBData -> String
 toString (RGBData (x:[])) = show x

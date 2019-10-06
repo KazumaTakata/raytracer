@@ -3,6 +3,7 @@ module Main where
 import Hitable
 import ImageData
 import Ray
+import System.Random
 import qualified Vector3
 
 type Origin = Vector3.Vec3
@@ -12,6 +13,16 @@ type LowerLeft = Vector3.Vec3
 type Horizontal = Vector3.Vec3
 
 type Vertical = Vector3.Vec3
+
+data Camera =
+  Camera Origin
+         LowerLeft
+         Horizontal
+         Vertical
+
+type X = Float
+
+type Y = Float
 
 getColor :: (Hitable a) => Ray -> HitableList a -> RGB
 getColor (Ray ori dir) hitablelist =
@@ -35,10 +46,6 @@ getColor (Ray ori dir) hitablelist =
         (round (255 * (Vector3.y vec3)))
         (round (255 * (Vector3.z vec3)))
 
-type X = Float
-
-type Y = Float
-
 renderAt ::
      (Hitable a) => X -> Y -> RGBData -> Camera -> HitableList a -> RGBData
 renderAt x y (RGBData list) (Camera ori low hor ver) hitablelist =
@@ -49,32 +56,63 @@ renderAt x y (RGBData list) (Camera ori low hor ver) hitablelist =
       color = getColor ray hitablelist
    in RGBData (list ++ [color])
 
-renderCol :: (Hitable a) => Y -> RGBData -> Camera -> HitableList a -> RGBData
-renderCol 0 rgbdata camera hitablelist =
-  renderRow 0 0 rgbdata camera hitablelist
-renderCol y rgbdata camera hitablelist =
-  let newrgbdata = renderRow 0 y rgbdata camera hitablelist
-   in renderCol (y - 1) newrgbdata camera hitablelist
-
-renderRow ::
-     (Hitable a) => X -> Y -> RGBData -> Camera -> HitableList a -> RGBData
-renderRow 199 y rgbdata camera hitablelist =
-  renderAt 199 y rgbdata camera hitablelist
-renderRow x y rgbdata camera hitablelist =
-  let newrgbdata = renderAt x y rgbdata camera hitablelist
-   in renderRow (x + 1) y newrgbdata camera hitablelist
-
 genDirection :: Camera -> Float -> Float -> Vector3.Vec3
 genDirection (Camera ori low hor ver) u v =
   Vector3.add
     (Vector3.add low (Vector3.elementMul hor u))
     (Vector3.elementMul ver v)
 
-data Camera =
-  Camera Origin
-         LowerLeft
-         Horizontal
-         Vertical
+genRandom :: [Int] -> Int -> IO [Int]
+genRandom list 0 = do
+  return list
+genRandom list n = do
+  number <- randomRIO (1, 7) :: IO Int
+  newlist <- genRandom list (n - 1)
+  return ([number] ++ newlist)
+
+data RandomPair =
+  RandomPair Float
+             Float
+
+forNTimes ::
+     (Hitable a)
+  => X
+  -> Y
+  -> Int
+  -> RGBData
+  -> Camera
+  -> HitableList a
+  -> IO RGBData
+forNTimes x y n rgbdata camera hitlist
+  | n <= 0 = return rgbdata
+  | otherwise = do
+    rand1 <- randomRIO (0, 1) :: IO Float
+    rand2 <- randomRIO (0, 1) :: IO Float
+    let indexX = 199 - x
+    --print ("(" ++ (show indexX) ++ "," ++ show y ++ "," ++ show number ++ ")")
+    let newrgbdata =
+          renderAt (indexX + rand1) (y + rand2) rgbdata camera hitlist
+    forNTimes x y (n - 1) newrgbdata camera hitlist
+
+forX ::
+     (Hitable a) => X -> Y -> RGBData -> Camera -> HitableList a -> IO RGBData
+forX x y rgbdata camera hitlist
+  | x < 0 = return rgbdata
+  | otherwise = do
+    sampledrgbdata <- forNTimes x y 10 (RGBData []) camera hitlist
+    let averagedrgbdata = rgbdata_average sampledrgbdata
+    let concat = rgbdata_concat rgbdata averagedrgbdata
+    newrgbdata <- forX (x - 1) y concat camera hitlist
+    return newrgbdata
+
+forY ::
+     (Hitable a) => X -> Y -> RGBData -> Camera -> HitableList a -> IO RGBData
+forY x y rgbdata camera hitlist
+  | y < 0 = return rgbdata
+  | otherwise = do
+    newrgbdata <- forX x y rgbdata camera hitlist
+    newrgbdata <- forY x (y - 1) newrgbdata camera hitlist
+    return newrgbdata
 
 main = do
   let origin = Vector3.Vec3 0 0 0
@@ -86,8 +124,8 @@ main = do
   let sphere1 = Shpere (Vector3.Vec3 0 0 (-1)) 0.5
   let sphere2 = Shpere (Vector3.Vec3 0 (-100.5) (-1)) 100
   let hitablelist = HitableList [sphere1, sphere2]
-  let rbgdata = renderCol 99 initrbgdata camera hitablelist
+  rbgdata <- forY 199 99 (RGBData []) camera hitablelist
   let ppmFile = PPMFile 200 100 rbgdata
   let imagedata = writePPM ppmFile
   writeFile "sample.ppm" imagedata
-  putStrLn "hello, world"
+  putStrLn "rendering complete"
