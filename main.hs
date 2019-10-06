@@ -13,11 +13,6 @@ type Horizontal = Vector3.Vec3
 
 type Vertical = Vector3.Vec3
 
-data Screen =
-  Screen LowerLeft
-         Horizontal
-         Vertical
-
 getColor :: (Hitable a) => Ray -> HitableList a -> RGB
 getColor (Ray ori dir) hitablelist =
   let unit_dir = Vector3.makeUnitVector dir
@@ -45,66 +40,53 @@ type X = Float
 type Y = Float
 
 renderAt ::
-     (Hitable a)
-  => X
-  -> Y
-  -> RGBData
-  -> Origin
-  -> Screen
-  -> HitableList a
-  -> RGBData
-renderAt x y (RGBData list) ori screen hitablelist =
+     (Hitable a) => X -> Y -> RGBData -> Camera -> HitableList a -> RGBData
+renderAt x y (RGBData list) (Camera ori low hor ver) hitablelist =
   let u = (x / 200.0)
       v = (y / 100.0)
-      dir = genDirection screen u v
+      dir = genDirection (Camera ori low hor ver) u v
       ray = Ray ori dir
       color = getColor ray hitablelist
    in RGBData (list ++ [color])
 
-renderCol ::
-     (Hitable a) => Y -> RGBData -> Origin -> Screen -> HitableList a -> RGBData
-renderCol 0 rgbdata ori screen hitablelist =
-  renderRow 0 0 rgbdata ori screen hitablelist
-renderCol y rgbdata ori screen hitablelist =
-  let newrgbdata = renderRow 0 y rgbdata ori screen hitablelist
-   in renderCol (y - 1) newrgbdata ori screen hitablelist
+renderCol :: (Hitable a) => Y -> RGBData -> Camera -> HitableList a -> RGBData
+renderCol 0 rgbdata camera hitablelist =
+  renderRow 0 0 rgbdata camera hitablelist
+renderCol y rgbdata camera hitablelist =
+  let newrgbdata = renderRow 0 y rgbdata camera hitablelist
+   in renderCol (y - 1) newrgbdata camera hitablelist
 
 renderRow ::
-     (Hitable a)
-  => X
-  -> Y
-  -> RGBData
-  -> Origin
-  -> Screen
-  -> HitableList a
-  -> RGBData
-renderRow 199 y rgbdata ori screen hitablelist =
-  renderAt 199 y rgbdata ori screen hitablelist
-renderRow x y rgbdata ori screen hitablelist =
-  let newrgbdata = renderAt x y rgbdata ori screen hitablelist
-   in renderRow (x + 1) y newrgbdata ori screen hitablelist
+     (Hitable a) => X -> Y -> RGBData -> Camera -> HitableList a -> RGBData
+renderRow 199 y rgbdata camera hitablelist =
+  renderAt 199 y rgbdata camera hitablelist
+renderRow x y rgbdata camera hitablelist =
+  let newrgbdata = renderAt x y rgbdata camera hitablelist
+   in renderRow (x + 1) y newrgbdata camera hitablelist
 
-genDirection :: Screen -> Float -> Float -> Vector3.Vec3
-genDirection (Screen low hor ver) u v =
+genDirection :: Camera -> Float -> Float -> Vector3.Vec3
+genDirection (Camera ori low hor ver) u v =
   Vector3.add
     (Vector3.add low (Vector3.elementMul hor u))
     (Vector3.elementMul ver v)
 
-genScreen :: Screen
-genScreen =
-  let lowerLeftCorner = Vector3.Vec3 (-2) (-1) (-1)
-      horizontal = Vector3.Vec3 4 0 0
-      vertical = Vector3.Vec3 0 2 0
-   in Screen lowerLeftCorner horizontal vertical
+data Camera =
+  Camera Origin
+         LowerLeft
+         Horizontal
+         Vertical
 
 main = do
   let origin = Vector3.Vec3 0 0 0
-  let screen = genScreen
+  let lowerLeftCorner = Vector3.Vec3 (-2) (-1) (-1)
+      horizontal = Vector3.Vec3 4 0 0
+      vertical = Vector3.Vec3 0 2 0
+  let camera = Camera origin lowerLeftCorner horizontal vertical
   let initrbgdata = RGBData []
   let sphere1 = Shpere (Vector3.Vec3 0 0 (-1)) 0.5
   let sphere2 = Shpere (Vector3.Vec3 0 (-100.5) (-1)) 100
   let hitablelist = HitableList [sphere1, sphere2]
-  let rbgdata = renderCol 99 initrbgdata origin screen hitablelist
+  let rbgdata = renderCol 99 initrbgdata camera hitablelist
   let ppmFile = PPMFile 200 100 rbgdata
   let imagedata = writePPM ppmFile
   writeFile "sample.ppm" imagedata
